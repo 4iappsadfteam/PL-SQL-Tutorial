@@ -3,7 +3,7 @@ Topics:
 2. Anchored Data type
 ------------------------------------------------------------
 
-1. SELECT INTO: DB data stored into variables
+1. SELECT INTO: DB data stored into variables :--column data type and variable data type should be same
   
       Code 1: Data Stored in 1 Variables
       
@@ -37,5 +37,22 @@ Topics:
                                 where employeeID=100;
                                 DBMS_OUTPUT.PUT_LINE(v_fname||'Has'||v_sal);
                            END;
-____________________________________________________________________________________________________________________________________
+___________________________________________________________________________________________________________________________________
 
+2. Anchored Data Type : Unknown Data type
+
+    Syntax: valid_Name  Type_Attribute %Type
+    
+    Eg: v_fname TableName.ColumnName %Type
+
+Code: 
+SET SERVEROUTPUT ON;
+DECLARE
+        v_fname Employees.First_name %Type
+        
+BEGIN
+        SELECT first_name INTO v_fname from Employees Where employeeId=100;
+        DBMS_OUTPUT.PUT_LINE(v_fname);
+END;
+/
+_______________________________________________________________________________________________________________________________        
