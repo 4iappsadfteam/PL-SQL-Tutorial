@@ -1,0 +1,41 @@
+Topics:
+1. SELECT INTO
+2. Anchored Data type
+------------------------------------------------------------
+
+1. SELECT INTO: DB data stored into variables
+  
+      Code 1: Data Stored in 1 Variables
+      
+                          SET SERVEROUTPUT ON;
+                          DECLARE
+                            v_sal Number(8);
+
+                          BEGIN
+                              ____________________________________________________________________________________________
+                              |   SELECT SALARY INTO v_sal from EMPOLYEES;                                                |
+                              |    // Run this code errorr will come- we have more salary have more in employee table     |
+                              |    // So where condtion is required                                                       |
+                              |___________________________________________________________________________________________|
+
+                           SELECT SALARY INTO v_sal from EMPOLYEES where employeeID=100;
+                           DBMS_OUTPUT.PUT_LINE(v_sal);
+                           END;
+ 
+      Code 2: Data Stored in 2 Variables
+
+                     SET SERVEROUTPUT ON;
+                          DECLARE
+                          
+                            v_sal Number(8);
+                            v_fname Varchar2(20;
+
+                          BEGIN
+                                SELECT SALARY, First_Name 
+                                INTO   v_sal, v_fname
+                                FROM  Employees
+                                where employeeID=100;
+                                DBMS_OUTPUT.PUT_LINE(v_fname||'Has'||v_sal);
+                           END;
+_____________________________________________________________________________________________________________________________________
+
