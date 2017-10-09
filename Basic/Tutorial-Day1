@@ -1,0 +1,103 @@
+
+PL/SQL: Procedural Language/Standard Query Language
+
+1. used to code in Server side programming
+2. Case-insensitive programming language
+
+Blocks: Basic Programming unit in PL/SQL
+                                  
+                                                 Blocks
+                                                   |
+                |----------------------------------|-------------------------------------|
+                |                                                                        |
+             Anonymous Block                                                        Named Blocks
+                |                                                                        |
+                |                                                                        |
+                |------------------------------------------------------------------------|
+                |                                  |                                     |
+                |                                  |                                     |
+       The Declaration section           The Execuation section              The Exception Handling 
+                                                                                      Section
+_____________________________________________________________________________________________________________________________________
+
+
+Prototype of Anonymos Block:
+
+Declare 
+==========================Declaration Statment
+Begin
+==========================Execuation Statment
+Exceptions
+==========================Exception Handling Statment
+End;
+______________________________________________________________________________________________________________________________________
+
+1. Declaration Section:
+          a. Defining Local variables 
+          b. variables, constant, cursor
+     Syntax: DECLARE
+     
+2. Execuation Section : 
+          a. Mandotory Sections     
+      Syntax: BEGIN 
+              END;
+      
+3. Exception Handling Section
+          a. Execute At run time error
+          b. All exception Code will occurs
+          
+________________________________________________________________________________________________________________________________
+
+Variables:
+          a. Holds some data
+          
+          Syntax: 
+                  a. Valid Name 
+                  b. Data Type 
+                  c. Data width
+
+Eg:
+    Set Serveroutput ON;
+    DECLARE
+    v-test Varchar2(80);
+--------------------------------------------------------------------------------------------------------------
+Initializing variable: 
+
+Eg:
+    SET SERVEROUTPUT ON;
+    DECLARE
+    v_test Varchar2(15):='Dinesh';
+---------------------------------------------------------------------------------------------------------------
+
+Code:
+
+SET SERVEROUTPUT ON;
+DECLARE
+          v_test VARCHAR2(25);
+BEGIN
+          v_test:='DINESH';
+      DBMS_OUTPUT.PUT_LINES(v_test);
+     
+END;     
+/     
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+              
+
+
