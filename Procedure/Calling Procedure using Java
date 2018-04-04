@@ -1,0 +1,52 @@
+// Calling Procedure using java
+
+
+    public String onCallVaration(Object headId, Object version) throws SQLException{
+           
+           oracle.jbo.domain.Number headerID=new oracle.jbo.domain.Number(headId.toString());
+           System.err.println("=---headID----"+headerID);
+           oracle.jbo.domain.Number versionID=new oracle.jbo.domain.Number(version.toString());
+           System.err.println("=---versionID----"+versionID);
+           String flag = "E"; // Error
+           String errorMessage = null;
+           Object updatedHeader=null;
+           Object updatedVersion=null;
+           //        oracle.jbo.domain.Number newHeadId=new oracle.jbo.domain.Number(0);
+           
+           ApplicationModuleImpl am=(ApplicationModuleImpl)ADFUtils.getApplicationModuleForDataControl(null); 
+           dobProcArgs = new Object[][]{ { "IN", headerID, OracleTypes.NUMBER }, //0
+                                         { "IN", versionID, OracleTypes.NUMBER },//1
+                                         { "OUT", updatedHeader, OracleTypes.NUMBER},   //2
+                                         { "OUT", updatedVersion, OracleTypes.NUMBER} ,  //3
+                                         { "OUT", flag, OracleTypes.VARCHAR }, //4
+                                         { "OUT", errorMessage, OracleTypes.VARCHAR }};  //5
+
+           try {
+               DBUtils.callDBStoredProcedure(am.getDBTransaction(),
+                                         "call xxsc_contract_pkg.create_variations(?,?,?,?,?,?)",
+                                         dobProcArgs);
+               
+               } catch (SQLException e) {
+           }
+           
+           updatedHeader=dobProcArgs[2][1];
+           updatedVersion=dobProcArgs[3][1];
+           flag=(String)dobProcArgs[4][1];
+           errorMessage=(String)dobProcArgs[5][1];
+           
+           System.err.println("==Duplicate Created===="+errorMessage);
+           System.err.println("==Duplicate Created===="+updatedHeader);
+           System.err.println("==Duplicate Created===="+updatedVersion);
+           System.err.println("==Duplicate Created===="+flag);
+           
+           ADFContext.getCurrent().getSessionScope().put("idd", updatedHeader);
+           ADFContext.getCurrent().getSessionScope().put("versionn", updatedVersion);
+//           JSFUtils.addFacesInformationMessage("Flag"+updatedHeader);
+//           JSFUtils.addFacesInformationMessage("Flag"+updatedVersion);
+//           JSFUtils.addFacesInformationMessage("Flag"+flag);
+//           JSFUtils.addFacesInformationMessage("Flag"+errorMessage);
+             
+            //JSFUtils.addFacesInformationMessage("Copy Purchase Order Completed.");
+    
+           return flag;
+       }
