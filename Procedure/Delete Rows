@@ -1,0 +1,20 @@
+// Delete Operation
+PROCEDURE purge_Contract(p_cont_header_id IN NUMBER, p_status_flag OUT varchar2);
+
+
+PROCEDURE purge_Contract(
+    p_cont_header_id IN NUMBER,
+    p_status_flag OUT VARCHAR2)
+IS
+BEGIN
+  DELETE FROM XXSC_CONTRACT_LINES WHERE CONT_HEADER_ID = p_cont_header_id;
+  DELETE FROM XXSC_CONTRACT_GUARANTEE WHERE CONT_HEADER_ID = p_cont_header_id;
+  DELETE FROM XXSC_CONTRACT_HEADERS WHERE CONT_HEADER_ID = p_cont_header_id;
+  COMMIT;
+  p_status_flag := 'S';
+  dbms_output.put_line(p_status_flag);
+EXCEPTION
+WHEN OTHERS THEN
+  p_status_flag := 'E';
+  dbms_output.put_line(p_status_flag);
+END purge_Contract;
