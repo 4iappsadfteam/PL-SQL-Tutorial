@@ -1,0 +1,55 @@
+create or replace PACKAGE PACKAGE_Name
+IS
+FUNCTION get_lookup_meaning(p_lookup_type VARCHAR2, p_lookup_code VARCHAR2)
+    RETURN VARCHAR2;
+
+FUNCTION get_business_unit(p_org_id NUMBER)
+    RETURN VARCHAR2;
+END PACKAGE_Name;
+----------------------------------------------------------------------------------------------------
+
+create or replace PACKAGE BODY PACKAGE_Name
+IS
+FUNCTION get_lookup_meaning(
+      p_lookup_type VARCHAR2,
+      p_lookup_code VARCHAR2)
+    RETURN VARCHAR2
+  IS
+    v_lookup_meaning VARCHAR2 (240);
+    CURSOR cur_lkp_meaning
+    IS
+      SELECT lookup_value_name_disp
+      FROM xxfnd_lookup_types lt,
+        xxfnd_lookup_values lv
+      WHERE 1                  = 1
+      AND lt.lookup_type_name  = p_lookup_type
+      AND lt.lookup_type_id    = lv.lookup_type_id
+      AND lv.lookup_value_name = p_lookup_code;
+  BEGIN
+    OPEN cur_lkp_meaning;
+    FETCH cur_lkp_meaning INTO v_lookup_meaning;
+    CLOSE cur_lkp_meaning;
+    RETURN v_lookup_meaning;
+  EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+  END get_lookup_meaning;
+--BU
+   FUNCTION get_business_unit(
+      p_org_id NUMBER)
+    RETURN VARCHAR2
+  IS
+    v_bu_name VARCHAR2 (240);
+    CURSOR cur_bu_name
+    IS
+      SELECT bu_name FROM xxstg_business_units WHERE 1 = 1 AND bu_id = p_org_id;
+  BEGIN
+    OPEN cur_bu_name;
+    FETCH cur_bu_name INTO v_bu_name;
+    CLOSE cur_bu_name;
+    RETURN v_bu_name;
+  EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+  END get_business_unit;
+END PACKAGE_Name;
