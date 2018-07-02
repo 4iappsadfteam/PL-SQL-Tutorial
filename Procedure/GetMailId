@@ -1,0 +1,31 @@
+function get_emailId(p_column_name       in varchar2,
+                   p_table_name        in varchar2,
+                   p_where_condtion    in varchar2,
+                   p_value             in varchar2)
+            return varchar2 ;
+-------------------------------------------------------------------
+
+function get_emailId( p_column_name       in varchar2,
+                 p_table_name        in varchar2,
+                 p_where_condtion    in varchar2,
+                 p_value             in varchar2) 
+            return varchar2 is
+
+l_sql    varchar2(1000);
+l_value  varchar2(500);
+p_email varchar2(500);
+begin
+
+       l_sql := 'select ' || p_column_name || ' from ' || p_table_name || ' where 1 = 1 ' || 
+                ' and ' || p_where_condtion || ' = ' || '''' ||  p_value || '''' ;
+          
+      execute immediate l_sql into l_value;
+      if(l_value='-') then
+      NULL;
+      ELSE
+      Select EMAIL into p_email From Xxsc_User_Access where EMAIL is not null and USER_ID = l_value;
+      END IF;
+return p_email;
+
+end get_emailId;
+-------------------------------------------------------------------------------------------------------------------------------------
