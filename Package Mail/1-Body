@@ -1,0 +1,764 @@
+create or replace package body xxfnd_util_pkg is
+
+
+function get_user_group(p_func_id      in      number,
+                        p_attribute1   in      varchar2,
+                        p_attribute2   in      varchar2,
+                        p_attribute3   in      varchar2,
+                        p_attribute4   in      varchar2,
+                        p_attribute5   in      varchar2)
+         return number is
+
+l_user_grp_id    number ;
+
+cursor c1 is 
+    select  ac.user_grp_id
+    from    xxfnd_func_approvals   fa, 
+            xxfnd_appr_attr_group  ag,
+            xxfnd_appr_attr_comb   ac
+    where  fa.func_id             = p_func_id
+    and    nvl(fa.active_yn, 'N') = 'Y'
+    and    ag.attr_grp_id         = fa.attr_grp_id
+    and    nvl(ag.active_yn, 'N') = 'Y'
+    and    ac.attr_grp_id         = ag.attr_grp_id
+    and    nvl(ac.active_yn, 'N') = 'Y'
+    and    nvl(ac.attribute1, ' ' )  = nvl(p_attribute1, ' ' )
+    and    nvl(ac.attribute2, ' ' )  = nvl(p_attribute2, ' ' )
+    and    nvl(ac.attribute3, ' ' )  = nvl(p_attribute3, ' ' )
+    and    nvl(ac.attribute4, ' ' )  = nvl(p_attribute4, ' ' )
+    and    nvl(ac.attribute5, ' ' )  = nvl(p_attribute5, ' ' ) ;
+
+begin
+
+    open  c1 ;
+    fetch c1 into l_user_grp_id ;
+    if c1%notfound then
+       close c1 ;
+       return null ;
+    end if ;
+    
+    close c1 ;
+    return l_user_grp_id ;
+    
+exception
+    when others  then
+         return null ;
+end get_user_group ;
+
+------              
+
+procedure submit_for_approval(p_func_id        in          number,
+                              p_ref_id         in          number, -- PK of respective function 
+                              p_user_grp_id    in          number,
+                              p_level_no       in out      number,
+                              p_flow_status    out         varchar2,
+                              p_appr_id        out         number,
+                              p_err_code       out         varchar2,
+                              p_err_msg        out         varchar2 )  is
+   
+-- submit for approval
+-- find  & get approver  
+-- if yes, insert records in history 
+--         send back level, appr id, flow sts
+-- if no, send as approved...
+
+l_level_no            number;
+l_flow_status         varchar2(60) ;
+l_appr_id             number;
+l_appr_role           varchar2(30) ;
+
+l_apr_tab             apr_tab ;
+   
+cursor c1 is
+  select  l.level_no, l.level_name, a.user_id, a.appr_role
+  from    xxfnd_appr_user_group g, xxfnd_appr_user_levels l, xxfnd_appr_users a
+  where   g.user_grp_id         = p_user_grp_id
+  and     nvl(g.active_yn, 'N') = 'Y' 
+  and     l.user_grp_id         = g.user_grp_id
+  and     nvl(l.active_yn, 'N') = 'Y' 
+  and     l.level_no            = nvl(p_level_no, 0) + 1
+  and     a.user_level_id       = l.user_level_id
+  and     nvl(a.active_yn, 'N') = 'Y' 
+  order by l.level_no ;
+
+/*** -- Old Query 
+  select  l.level_no, l.level_name, a.user_id, a.appr_role
+  from    xxfnd_func_appr_levels l, xxfnd_func_approvals a
+  where   l.func_id             = p_func_id
+  and     nvl(l.active_yn, 'N') = 'Y' 
+  and     l.level_no            = nvl(p_level_no, 0) + 1
+  and     a.appr_level_id       = l.appr_level_id
+  and     nvl(a.active_yn, 'N') = 'Y' 
+  order by l.level_no ;
+***/
+   
+begin
+  p_err_code     := '0';
+  p_err_msg      := 'Success';
+--  p_level_no     := null ;
+--  p_flow_status  := 'A' ;
+--  p_appr_id      := null ;    
+
+dbms_output.put_line('@submit_for_approval0: p_func_id | p_ref_id |  p_level_no | p_appr_id | p_flow_status :' ||  
+                       p_func_id ||' | '|| p_ref_id ||' | '||  p_level_no ||' | '|| p_appr_id ||' | '|| p_flow_status ) ;
+
+  -- Get Next Approver  
+  --open  c1 ;
+  --fetch c1 into l_level_no, l_flow_status, l_appr_id, l_appr_role ;
+  --close c1 ;
+  
+  open  c1 ;
+  fetch c1 bulk collect into l_apr_tab ;
+  close c1 ;  
+      
+  if l_apr_tab.count > 0 then
+  
+      for l in l_apr_tab.first .. l_apr_tab.last
+      loop
+
+         l_level_no    := l_apr_tab(l).level_no ;
+         l_flow_status := l_apr_tab(l).flow_status ;
+         l_appr_id     := l_apr_tab(l).appr_id ;
+         l_appr_role   := l_apr_tab(l).appr_role ;
+
+dbms_output.put_line('@submit_for_approval1: p_func_id | p_ref_id |  l_level_no | l_appr_id | l_appr_role | l_flow_status :' ||  
+                       p_func_id ||' | '|| p_ref_id ||' | '||  l_level_no ||' | '|| l_appr_id ||' | '|| l_appr_role ||' | '|| l_flow_status ) ;    
+         
+dbms_output.put_line('@submit_for_approval1a : l_level_no is not null ' || l_level_no) ;
+         xxfnd_pkg.insert_appr_hist(p_func_id, p_ref_id, l_level_no, l_appr_id, l_appr_role, p_err_code, p_err_msg ) ;
+
+         p_level_no       := l_level_no ;
+         p_flow_status    := l_flow_status ;
+         p_appr_id        := l_appr_id ;
+            
+      -- insert mailing procedure 
+      
+      end loop ;   
+  else
+dbms_output.put_line('@submit_for_approval1b : l_level_no is null ' || l_level_no) ;
+     
+     p_level_no       := null ;
+     p_flow_status    := 'A' ;
+     p_appr_id        := null ;    
+        
+  end if ;
+
+dbms_output.put_line('@submit_for_approval2: p_func_id | p_ref_id |  p_level_no | p_appr_id | l_appr_role | p_flow_status :' ||  
+                       p_func_id ||' | '|| p_ref_id ||' | '||  p_level_no ||' | '|| p_appr_id ||' | '|| l_appr_role ||' | '|| p_flow_status ) ;    
+      
+exception
+  when others  then
+     p_err_code := sqlcode;
+     p_err_msg  := substr (sqlerrm, 1, 2000);
+     return;
+end submit_for_approval ;
+
+------              
+
+procedure update_response(p_func_id        in          number,
+                          p_ref_id         in          number, -- PK of respective function 
+                          p_user_grp_id    in          number,
+                          p_level_no       in out      number,
+                          p_appr_id        in out      number,
+                          p_response       in          varchar2,
+                          p_status         in          varchar2,
+                          p_fwd_to         in          number,
+                          p_flow_status    out         varchar2,
+                          p_err_code       out         varchar2,
+                          p_err_msg        out         varchar2 )  is
+
+-- get response 
+-- if approved, repeat steps till gets approved...
+-- if rejected, stop the process
+--              send back status
+-- if change user, insert records in history
+--              send back level, appr id, flow sts
+
+
+l_level_no            number;
+l_flow_status         varchar2(60) := null ;
+l_appr_id             number;
+l_appr_role           varchar2(30) ;
+l_pending_yn          varchar2(1) ;
+l_appr_by_all         varchar2(1) ;
+   
+cursor c1 is
+   select  l.appr_by_all
+   from    xxfnd_appr_user_levels l 
+   where   l.user_grp_id         = p_user_grp_id
+   -- and     nvl(l.active_yn, 'N') = 'Y' 
+   and     l.level_no            = nvl(p_level_no, 0) ;
+
+
+cursor c2 is
+   select  'Y'
+   from    xxfnd_func_approval_hist
+   where  func_id             = p_func_id
+   and    func_ref_id         = p_ref_id
+   and    seq_number          = p_level_no
+   and    nvl(status,'P')     = 'P' ;
+   
+begin
+  p_err_code     := '0';
+  p_err_msg      := 'Success';
+ 
+
+  -- Check whether all approvals required or not 
+  -- If not, update all as approved and move to next level
+  -- If yes, check whether all approved or not 
+  --         if all approved move to next level
+  --         if not wait till all get approved
+
+   open  c1 ;
+   fetch c1 into l_appr_by_all ;
+   close c1 ;
+
+dbms_output.put_line('@update_response1: p_func_id | p_ref_id |  p_level_no | p_appr_id | l_appr_role | p_flow_status | p_response | p_status | p_fwd_to   :' ||  
+                       p_func_id ||' | '|| p_ref_id ||' | '||  p_level_no ||' | '|| p_appr_id ||' | '|| l_appr_role ||' | '|| p_flow_status ||' | '|| 
+                       p_response  ||' | '||  p_status  ||' | '||  p_fwd_to   ) ;    
+
+   if p_status = 'R' then  -- Rejected 
+dbms_output.put_line('@update_response2: p_status - Rejected') ;
+
+        -- Update all as Rejected ...
+        xxfnd_pkg.update_appr_hist(p_func_id, p_ref_id, p_level_no, null, p_response, p_status, p_err_code, p_err_msg ) ;
+
+        p_flow_status := p_status ;
+   
+   elsif p_status = 'F' then  -- Forwarded To 
+dbms_output.put_line('@update_response3: p_status - Forward') ;
+
+        -- all approvals required
+        xxfnd_pkg.update_appr_hist(p_func_id, p_ref_id, p_level_no, p_appr_id, p_response, p_status, p_err_code, p_err_msg ) ;
+
+        xxfnd_pkg.insert_appr_hist(p_func_id, p_ref_id, p_level_no, p_fwd_to, l_appr_role, p_err_code, p_err_msg ) ;
+
+        p_flow_status := p_status ;
+
+     -- insert mailing procedure 
+          
+              
+   else  -- Approved 
+dbms_output.put_line('@update_response4: p_status - Approved') ;
+
+dbms_output.put_line('@update_response5: l_appr_by_all ' || l_appr_by_all ) ;
+   
+       if nvl(l_appr_by_all, 'N') = 'N' then
+           
+          -- all approvals not required
+          xxfnd_pkg.update_appr_hist(p_func_id, p_ref_id, p_level_no, null, p_response, p_status, p_err_code, p_err_msg ) ;
+
+           -- move to next level 
+           submit_for_approval(p_func_id, p_ref_id, p_user_grp_id, p_level_no, l_flow_status, p_appr_id, p_err_code, p_err_msg ) ;
+           
+       else
+dbms_output.put_line('@update_response5a: l_appr_by_all ' || l_appr_by_all ) ;
+          -- all approvals required
+          xxfnd_pkg.update_appr_hist(p_func_id, p_ref_id, p_level_no, p_appr_id, p_response, p_status, p_err_code, p_err_msg ) ;
+               
+           open  c2 ;
+           fetch c2 into l_pending_yn ;
+           close c2 ;
+
+dbms_output.put_line('@update_response6: l_pending_yn ' || l_pending_yn ) ;
+               
+           if nvl(l_pending_yn, 'N') != 'Y' then
+              -- all approved, move to next level 
+              submit_for_approval(p_func_id, p_ref_id, p_user_grp_id, p_level_no, l_flow_status, p_appr_id, p_err_code, p_err_msg ) ;
+                  
+           end if ;   
+                
+       end if ;
+
+      p_flow_status := l_flow_status ;
+
+   end if ;
+
+
+dbms_output.put_line('@update_response7: l_flow_status ' || l_flow_status ) ;
+
+exception
+  when others  then
+     p_err_code := sqlcode;
+     p_err_msg  := substr (sqlerrm, 1, 2000);
+     return;
+end update_response ;
+
+------              
+
+procedure submit_for_approval(p_func_id                  in          number,
+                              p_ref_id                   in          number, -- pk of respective function 
+                              p_level_no                 in out      number,
+                              p_table_name               in          varchar2,
+                              p_status_column            in          varchar2,
+                              p_pk_column                in          varchar2,
+                              p_attribute1               in          varchar2,
+                              p_attribute2               in          varchar2,
+                              p_attribute3               in          varchar2,
+                              p_attribute4               in          varchar2,
+                              p_attribute5               in          varchar2,
+                              p_flow_with                out         varchar2,
+                              p_err_code                 out         varchar2,
+                              p_err_msg                  out         varchar2)  is
+                              
+l_flow_status  varchar2(100)  := null;
+l_appr_id      number;
+l_err_code     varchar2(100);
+l_err_msg      varchar2(100);
+l_status       varchar2(100);
+l_flow_with    number         := null;
+l_flow_level   number         := null;
+l_stmt         varchar2(5000);
+l_user_grp_id  number ;
+
+begin
+    p_err_code     := '0';
+    p_err_msg      := 'Success';
+    
+    -- Ger User Group  
+    l_user_grp_id := get_user_group(p_func_id, p_attribute1, p_attribute2, p_attribute3, p_attribute4, p_attribute5) ;
+    dbms_output.put_line('group id==>  ' || l_user_grp_id ) ; 
+    if l_user_grp_id is null then
+       p_err_code     := '-1';
+       p_err_msg      := 'No Active Approval Attribute Group or User Group defined...';
+       return ;
+    end if ;
+    
+    l_stmt := 'update '|| p_table_name ||' set '|| p_status_column ||
+	            ' = :1,flow_status = :2,flow_with = :3,flow_level = :4, user_grp_id = :5 where '|| p_pk_column ||' = '||p_ref_id ; 
+
+    submit_for_approval(p_func_id, p_ref_id, l_user_grp_id, p_level_no, l_flow_status, l_appr_id, l_err_code, l_err_msg ) ;
+   
+    dbms_output.put_line('flow status ,app id,===>' ||  
+                       l_flow_status ||' | '|| l_appr_id ||' | '||  l_err_code ||' | '|| l_err_msg ) ; 
+
+    dbms_output.put_line('query==>  ' || l_stmt ) ; 
+                       
+   if l_flow_status = 'A' then
+      l_status      := 'APR';
+	  l_flow_status := null ;
+      l_flow_with   := null;
+      l_flow_level  := null;
+      l_user_grp_id := null;
+   else
+      l_status     := 'PEN';
+      l_flow_with  := l_appr_id;
+      l_flow_level := p_level_no;
+   end if;
+
+   execute immediate l_stmt using l_status,l_flow_status,l_flow_with,l_flow_level, l_user_grp_id ;
+   p_flow_with := l_flow_with;
+   commit;
+   dbms_output.put_line('STAUS==>  ' || p_err_code ||' ' || p_err_msg ) ;  
+exception
+         when others  then
+           p_err_code     := '1';
+           p_err_msg      := substr (sqlerrm, 1, 2000);       
+         dbms_output.put_line('STAUS==>  ' || p_err_code ||' ' || p_err_msg ) ;  
+end submit_for_approval ;
+
+--
+
+procedure update_response(p_func_id        in          number,
+                          p_ref_id         in          number, -- pk of respective function 
+                          p_user_grp_id    in          number,
+                          p_level_no       in out      number,
+                          p_appr_id        in out      number,
+                          p_response       in          varchar2,
+                          p_ar_status      in          varchar2,
+                          p_fwd_to         in          number,
+                          p_table_name     in          varchar2,
+                          p_status_column  in          varchar2,
+                          p_pk_column      in          varchar2,
+                          p_err_code       out         varchar2,
+                          p_err_msg        out         varchar2) is
+
+l_flow_status  varchar2(100) :=null;
+l_appr_id      number        :=p_appr_id;
+l_err_code     varchar2(100);
+l_err_msg      varchar2(100); 
+l_status       varchar2(100);
+l_flow_with    number        := null;
+l_flow_level   number        := null;
+l_stmt         varchar2(5000);
+l_flow_to      number        := p_fwd_to;
+l_user_grp_id  number ;
+
+begin
+      p_err_code     := '0';
+      p_err_msg      := 'Success';
+
+    l_stmt  := 'update'||' '|| p_table_name ||' '||'set '|| p_status_column ||
+	             ' = :1,flow_status = :2,flow_with = :3,flow_level = :4, user_grp_id = :5 where '|| p_pk_column ||'='||p_ref_id ; 
+   dbms_output.put_line('one ');
+   update_response(p_func_id, p_ref_id, p_user_grp_id, p_level_no, l_appr_id, p_response, p_ar_status, p_fwd_to, l_flow_status, l_err_code, l_err_msg ) ;
+   dbms_output.put_line('STAUS==>  ' || l_flow_status) ; 
+    
+    if l_flow_status = 'A' then
+       l_status := 'APR';
+       l_flow_status := null ;
+       l_flow_with   := null ;
+       l_flow_level  := null ; 
+       l_user_grp_id := null ;      
+    elsif l_flow_status = 'R' then
+       l_status := 'REJ';
+       l_flow_status := null ;
+       l_flow_with   := null ;
+       l_flow_level  := null ;
+       l_user_grp_id := null ;
+    elsif l_flow_status = 'F' then 
+       l_stmt := 'update'||' '|| p_table_name ||' '||'set flow_with = :1 where '|| p_pk_column ||'='||p_ref_id ; 
+    else
+       l_status      := 'PEN';
+       l_flow_with   := l_appr_id;
+       l_flow_level  := p_level_no;
+       l_user_grp_id := p_user_grp_id ;
+    end if ;
+    
+    if l_flow_status = 'F' then 
+       execute immediate l_stmt using l_flow_to;
+    else
+       execute immediate l_stmt using l_status,l_flow_status,l_flow_with,l_flow_level, l_user_grp_id ;
+    end if;
+    commit;     
+exception
+        when others  then
+           p_err_code     := '1';
+           p_err_msg      := substr (sqlerrm, 1, 2000);
+      dbms_output.put_line('STAUS==>  ' || p_err_code ||' ' || p_err_msg ) ; 
+end update_response;
+
+procedure submit_mail(p_from            in varchar2, 
+                      p_to              in varchar2,
+                      nameOfNofication  in varchar2,
+                      NoficationNumber  in varchar2,
+                      User              in varchar2,
+                      p_err_code        out         varchar2,
+                      p_err_msg         out         varchar2) is
+
+l_from              VARCHAR2(240);
+l_body              VARCHAR2(240);
+l_body_html         VARCHAR2(32767);
+l_subject           VARCHAR2(240);
+l_to                VARCHAR2(240);
+l_security_group_id NUMBER;
+p_security_group_id NUMBER;
+l_sales_mgr_email   NUMBER;
+p_sales_mgr_email   VARCHAR2(240);
+
+BEGIN
+    p_err_code     := '0';
+    p_err_msg      := 'Success';
+
+l_from      := p_from;
+l_to        := p_TO;
+l_body      := 'To view the content of this message, please use an HTML enabled mail client.' ;
+l_body_html :='<html>
+<head>
+<title>Page Title</title>
+</head>
+<body>
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:#444444">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" class="x_m_-6366644067162443722x_container" style="border-spacing:0; border-collapse:collapse; vertical-align:top; max-width:500px; margin:0 auto; text-align:inherit">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+<table cellpadding="0" cellspacing="0" width="100%" bgcolor="transparent" class="x_m_-6366644067162443722x_block-grid" style="border-spacing:0; border-collapse:collapse; vertical-align:top; width:100%; max-width:500px; color:#333; background-color:transparent">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; text-align:center; font-size:0">
+<div class="x_m_-6366644067162443722x_col x_m_-6366644067162443722x_num12" style="display:inline-block; vertical-align:top; width:100%">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; padding-top:20px; padding-right:0px; padding-bottom:20px; padding-left:0px; border-top:0px solid transparent; border-right:0px solid transparent; border-bottom:0px solid transparent; border-left:0px solid transparent">
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody><tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:0px; padding-left:10px">
+<div style="color: rgb(85, 85, 85); line-height: 120%; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont;">
+<div style="font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont; font-size: 12px; line-height: 14px; color: rgb(85, 85, 85); text-align: left;">
+<p style="margin:0; font-size:18px; line-height:22px"><span style="font-size:26px; line-height:31px; color:rgb(255,255,255)"><strong><span style="line-height:31px; font-size:26px">Sobha</span></strong></span></p>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:5px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="color: rgb(136, 136, 136); line-height: 120%; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont;">
+<div style="font-size: 12px; line-height: 14px; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont; color: rgb(136, 136, 136); text-align: left;">
+<p style="margin:0; font-size:12px; line-height:14px"><span style="color:rgb(153,153,153); font-size:12px; line-height:14px">Sobha <span class="x_m_-6366644067162443722highlight" id="x_m_-63666440671624437220.9182669872898304" name="x_searchHitInReadingPane">Notifications</span></span></p>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:#e5e5e5">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" class="x_m_-6366644067162443722x_container" style="border-spacing:0; border-collapse:collapse; vertical-align:top; max-width:500px; margin:0 auto; text-align:inherit">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+<table cellpadding="0" cellspacing="0" width="100%" bgcolor="transparent" class="x_m_-6366644067162443722x_block-grid" style="border-spacing:0; border-collapse:collapse; vertical-align:top; width:100%; max-width:500px; color:#333; background-color:transparent">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; text-align:center; font-size:0">
+<div class="x_m_-6366644067162443722x_col x_m_-6366644067162443722x_num12" style="display:inline-block; vertical-align:top; width:100%">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; padding-top:30px; padding-right:0px; padding-bottom:30px; padding-left:0px; border-top:0px solid transparent; border-right:0px solid transparent; border-bottom:0px solid transparent; border-left:0px solid transparent">
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:0px; padding-left:10px">
+<div style="color: rgb(85, 85, 85); line-height: 120%; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont;">
+<div style="font-size: 12px; line-height: 14px; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont; color: rgb(85, 85, 85); text-align: left;">
+<p style="margin:0; font-size:14px; line-height:17px; text-align:justify"><span style="font-size:24px; line-height:28px"><strong><span style="line-height:28px; font-size:24px"><span style="color:rgb(44,48,94); font-size:24px; line-height:28px">Hey</span>,<span style="color:rgb(51,51,51); font-size:24px; line-height:28px"> <span style="font-size:24px; line-height:28px">'||nameOfNofication||''||NoficationNumber||' Submitted for approval.</span></span></span></strong></span></p>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="height:1px">
+<table align="center" border="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top; border-top:1px solid #bbbbbb; width:100%">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:5px; padding-right:10px; padding-bottom:5px; padding-left:10px">
+<div style="color: rgb(119, 119, 119); line-height: 120%; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont;">
+<div style="font-size: 12px; line-height: 14px; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont; color: rgb(119, 119, 119); text-align: left;">
+<p style="margin:0; font-size:14px; line-height:17px; text-align:justify"><span style="font-size:12px; line-height:14px; color:rgb(51,51,51)"><span style="font-size:12px; line-height:14px"><span style="font-size:12px; line-height:14px"><strong style="color:rgb(255,102,0)">'||User||'</strong> has placed an '||nameOfNofication||' with '||nameOfNofication||' number '||NoficationNumber||' is Submitted for approval.<br>
+<br>
+Thank you!<br>
+<span class="x_m_-6366644067162443722contextualExtensionHighlight x_m_-6366644067162443722ms-font-color-themePrimary x_m_-6366644067162443722ms-border-color-themePrimary x_m_-6366644067162443722ident_999_1058">Good day!</span></span></span></span></p>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="height:1px">
+<table align="center" border="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top; border-top:1px solid #bbbbbb; width:100%">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:15px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="line-height: 120%; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont;">
+<div style="font-size: 12px; line-height: 14px; font-family: Roboto, Tahoma, Verdana, Segoe, sans-serif, serif, EmojiFont; text-align: left;">
+<table style="border-collapse:collapse; border-spacing:0">
+<tbody>
+<tr>
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#666; overflow:hidden; word-break:normal; vertical-align:top">
+<span class="x_m_-6366644067162443722contextualExtensionHighlight x_m_-6366644067162443722ms-font-color-themePrimary x_m_-6366644067162443722ms-border-color-themePrimary x_m_-6366644067162443722ident_999_1058">'||nameOfNofication||'</span></td>
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#ff6600; font-weight:bold; overflow:hidden; word-break:normal; vertical-align:top">
+<span class="x_m_-6366644067162443722contextualExtensionHighlight x_m_-6366644067162443722ms-font-color-themePrimary x_m_-6366644067162443722ms-border-color-themePrimary x_m_-6366644067162443722ident_999_1058">'||NoficationNumber||'</span></td>
+</tr>
+<tr>
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#666; overflow:hidden; word-break:normal; vertical-align:top">
+<span class="x_m_-6366644067162443722contextualExtensionHighlight x_m_-6366644067162443722ms-font-color-themePrimary x_m_-6366644067162443722ms-border-color-themePrimary x_m_-6366644067162443722ident_999_1058">Status</span></td>
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#ff6600; font-weight:bold; overflow:hidden; word-break:normal; vertical-align:top">
+<span class="x_m_-6366644067162443722contextualExtensionHighlight x_m_-6366644067162443722ms-font-color-themePrimary x_m_-6366644067162443722ms-border-color-themePrimary x_m_-6366644067162443722ident_999_1058">Submitted for Approval</span></td>
+</tr>
+<tr>
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#666; overflow:hidden; word-break:normal; vertical-align:top">
+<td style="font-size:12px; font-weight:normal; padding:10px 5px; border:none; color:#ff6600; font-weight:bold; overflow:hidden; word-break:normal; vertical-align:top">
+</tr>
+<tr>
+</tbody>
+</table>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="height:1px">
+<table align="center" border="0" cellspacing="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top; border-top:1px solid #bbbbbb; width:100%">
+<tbody>
+<tr style="vertical-align:top">
+<td align="center" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td class="x_m_-6366644067162443722x_button-container" align="left" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:15px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<table width="100%" border="0" cellspacing="0" cellpadding="0" align="left" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" class="x_m_-6366644067162443722x_button" align="left" valign="middle" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+<div align="left" style="display:inline-block; border-radius:5px; max-width:25%; width:100%; border-top:0px solid transparent; border-right:0px solid transparent; border-bottom:0px solid transparent; border-left:0px solid transparent">
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:#444444">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" class="x_m_-6366644067162443722x_container" style="border-spacing:0; border-collapse:collapse; vertical-align:top; max-width:500px; margin:0 auto; text-align:inherit">
+<tbody>
+<tr style="vertical-align:top">
+<td width="100%" style="word-break:break-word; border-collapse:collapse!important; vertical-align:top">
+<table cellpadding="0" cellspacing="0" width="100%" bgcolor="transparent" class="x_m_-6366644067162443722x_block-grid" style="border-spacing:0; border-collapse:collapse; vertical-align:top; width:100%; max-width:500px; color:#333; background-color:transparent">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; text-align:center; font-size:0">
+<div class="x_m_-6366644067162443722x_col x_m_-6366644067162443722x_num12" style="display:inline-block; vertical-align:top; width:100%">
+<table cellpadding="0" cellspacing="0" align="center" width="100%" border="0" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; background-color:transparent; padding-top:25px; padding-right:0px; padding-bottom:25px; padding-left:0px; border-top:0px solid transparent; border-right:0px solid transparent; border-bottom:0px solid transparent; border-left:0px solid transparent">
+<table cellpadding="0" cellspacing="0" width="100%" style="border-spacing:0; border-collapse:collapse; vertical-align:top">
+<tbody>
+<tr style="vertical-align:top">
+<td style="word-break:break-word; border-collapse:collapse!important; vertical-align:top; padding-top:10px; padding-right:10px; padding-bottom:10px; padding-left:10px">
+<div style="color: rgb(187, 187, 187); line-height: 120%; font-family: Helvetica Neue, Helvetica, Arial, sans-serif, serif, EmojiFont;">
+<div style="font-size: 12px; line-height: 14px; color: rgb(187, 187, 187); font-family: Helvetica Neue, Helvetica, Arial, sans-serif, serif, EmojiFont; text-align: left;">
+<p style="margin:0; font-size:12px; line-height:14px; text-align:center">Sobha <span class="x_m_-6366644067162443722highlight" id="x_m_-63666440671624437220.6246102622735843" name="x_searchHitInReadingPane">Notifications</span></p>
+<p style="margin:0; font-size:12px; line-height:14px; text-align:center">mailto:Sobhanotifications@sobha-me.com <span class="x_m_-6366644067162443722highlight" id="x_m_-63666440671624437220.6246102622735843" name="x_searchHitInReadingPane"></span></p>
+<p style="margin:0; font-size:12px; line-height:14px; text-align:center"><a href="mailto:Sobhanotifications@sobha-me.com?subject=Order+Notifications+Support+(12001)" target="_blank" rel="noopener noreferrer" title="Sobhanotification@gmail.com" style="color:#ffffff; text-decoration:underline"><wbr></a></p>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>' ;
+
+l_subject   := 'SOBHA_NOTIFICATION';
+select apex_util.find_security_group_id (
+(select apex_util.find_workspace(
+(select apex_application.get_security_group_id from dual)) 
+from dual)) into l_security_group_id 
+from dual;
+/*
+
+select apex_util.find_security_group_id (p_workspace => 'BATNJKONMPLME') into l_security_group_id  from dual;
+apex_util.set_security_group_id (p_security_group_id => l_security_group_id);
+1516 apex_util.set_security_group_id (98183977190639809);*/
+ 
+apex_util.set_security_group_id(p_security_group_id => l_security_group_id );
+apex_mail.send (l_to,l_from,l_body,l_body_html,l_subject);
+--apex_mail.push_queue(P_SMTP_HOSTNAME => '4iapps-com.mail.protection.outlook.com', P_SMTP_PORTNO => 25);  
+apex_mail.push_queue(P_SMTP_HOSTNAME => '213.199.154.87', P_SMTP_PORTNO => 25);  
+APEX_MAIL.PUSH_QUEUE;
+   dbms_output.put_line('STAUS==>  ' || p_err_code ||' ' || p_err_msg ) ;  
+exception
+        when others  then
+           p_err_code     := '1';
+           p_err_msg      := 'Failed';
+END;
+ 
+end xxfnd_util_pkg;
