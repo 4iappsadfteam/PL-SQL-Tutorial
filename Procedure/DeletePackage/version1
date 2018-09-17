@@ -1,0 +1,34 @@
+create or replace PACKAGE xxrm_pkg
+AS
+PROCEDURE delete_request(
+      p_req_id IN NUMBER,
+      p_code out VARCHAR2,
+    p_msg  out  VARCHAR2
+     );
+---------------------------------------------  
+END xxrm_pkg;
+
+create or replace PACKAGE body xxrm_pkg
+IS
+PROCEDURE delete_request(
+      p_req_id IN NUMBER,
+      p_code out VARCHAR2,
+    p_msg  out VARCHAR2
+      )
+  IS
+  BEGIN
+    DELETE FROM xxrm_request_assign WHERE request_id = p_req_id;
+    DELETE FROM xxrm_request_lines WHERE request_id = p_req_id;
+    DELETE FROM xxrm_request_headers WHERE request_id = p_req_id;
+    COMMIT;
+    p_code := 'S';
+    p_msg  := 'Success';
+--    dbms_output.put_line(p_msg);
+  EXCEPTION
+  WHEN OTHERS THEN
+    p_code := SQLCODE;
+    p_msg  := SUBSTR(sqlerrm,1,2000);
+--    dbms_output.put_line(p_msg);
+    ROLLBACK;
+  END delete_request;
+  END xxrm_pkg;
