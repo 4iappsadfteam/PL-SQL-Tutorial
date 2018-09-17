@@ -1,0 +1,28 @@
+import java.sql.SQLException;
+
+import oracle.jbo.server.ApplicationModuleImpl;
+
+import oracle.jdbc.OracleTypes;
+----
+private static Object[][] dobProcArgs = null;
+
+    public static String deleteRequest(oracle.jbo.domain.Number req_Id) throws SQLException {
+        String pkgMethod = "call " + "XXRM_PKG.DELETE_REQUEST" + "(?,?,?)";
+        String p_err_code = null;
+        String p_err_msg = null;
+
+        ApplicationModuleImpl am =
+            (ApplicationModuleImpl)ADFUtils.getApplicationModuleForDataControl(null);
+
+        dobProcArgs =
+                new Object[][] { { "IN", req_Id,    OracleTypes.NUMBER }, //0
+                                 { "OUT", p_err_code, OracleTypes.VARCHAR }, //1
+                                 { "OUT", p_err_msg,  OracleTypes.VARCHAR } //2
+                                } ;
+        try {
+            DBUtils.callDBStoredProcedure(am.getDBTransaction(), pkgMethod, dobProcArgs);
+        } catch (SQLException e) {
+        }
+        p_err_msg=(String)dobProcArgs[2][1];
+        return p_err_msg;
+    }
