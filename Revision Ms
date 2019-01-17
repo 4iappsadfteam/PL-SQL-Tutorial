@@ -1,0 +1,153 @@
+create or replace PACKAGE "XX_TEST"
+IS
+
+ 
+ procedure revise_milestone (p_mshdr_id          in       number,
+                            p_user_id          in       varchar2,
+                            p_err_code         out      varchar2,
+                            p_err_msg          out      varchar2 )  ;
+      
+END XX_TEST;
+----------------------------------------------------------------------------------------
+
+create or replace PACKAGE BODY "XX_TEST"
+IS
+
+procedure revise_milestone (p_mshdr_id          in       number,
+                           p_user_id          in       varchar2,
+                           p_err_code         out      varchar2,
+                           p_err_msg          out      varchar2 )  is
+
+   cursor c1 is
+      select
+                        MS_HDR_ID               ,       MILESTONE_NAME          ,       MILESTONE_NAME_TL       ,   MILESTONE_NUMBER                ,  
+                        MILESTONE_SHORTCODE      ,       MILESTONE_DATE          ,       FUNC_ID                 ,   ORG_ID                          ,
+                        PROJECT_ID              ,       MILESTONE_TYPE          ,       USAGE                   ,   nvl(REVISION_NO, 0)REVISION_NO  ,
+			REVISION_DATE           ,       REVISED_BY              ,       DESCRIPTION             ,   START_DATE                      ,
+			END_DATE                ,	ACTIVE_YN               ,       STATUS                  ,   FLOW_STATUS                     ,
+			FLOW_LEVEL              ,	FLOW_WITH               ,	USER_GRP_ID             ,   ATTRIBUTE_CATEGORY              ,
+			ATTRIBUTE1              ,	ATTRIBUTE2              ,	ATTRIBUTE3              ,   ATTRIBUTE4                      ,
+			ATTRIBUTE5              ,	ATTRIBUTE6              ,	ATTRIBUTE7              ,   ATTRIBUTE8                      ,
+			ATTRIBUTE9              ,	ATTRIBUTE10             ,	CREATED_BY              ,   CREATION_DATE                   ,
+			LAST_UPDATED_BY         ,	LAST_UPDATE_DATE        ,	LAST_UPDATE_LOGIN       
+              from    XXPM_MILESTONE_HDR
+              where   MS_HDR_ID    = p_mshdr_id ;
+
+   cursor c2 is
+      select
+              MS_DTL_ID          , MS_HDR_ID          , SEQ_NUMBER         , INSTALLMENT_TYPE   ,
+              INSTALLMENT_PCT    , CHARGE_TYPE        , PAYMENT_TERM       , REMARKS            ,
+              DUE_DAYS           , DUE_DAYS_FROM      , PROJ_MS_ID         , DUE_DATE           ,
+      nvl(REVISION, 0)REVISION   , REVISION_DATE      , REVISED_BY         , ATTRIBUTE_CATEGORY ,
+              ATTRIBUTE1         , ATTRIBUTE2         , ATTRIBUTE3         , ATTRIBUTE4         ,
+              ATTRIBUTE5         , ATTRIBUTE6         , ATTRIBUTE7         , ATTRIBUTE8         ,
+              ATTRIBUTE9         , ATTRIBUTE10        , CREATED_BY         , CREATION_DATE      ,
+              LAST_UPDATED_BY    , LAST_UPDATE_DATE   , LAST_UPDATE_LOGIN  , INSTALLMENT_METHOD ,
+              PERIOD_OCCURENCE   , PERIOD_VALUES      , PERIOD_DURATION    , INSTALLMENT_EVENT  
+            from    XXPM_MILESTONE_DTL
+            where   MS_HDR_ID    = p_mshdr_id ;
+
+   begin
+      p_err_code     := '0';
+      p_err_msg      := 'Success';
+
+      -- Create History Record for Header 
+      for c in c1
+      loop
+
+          Insert into XXPM_MILESTONE_HDR_H (
+                 
+MS_HDR_ID_H         , MS_HDR_ID           , MILESTONE_NAME      , MILESTONE_NAME_TL   ,
+MILESTONE_NUMBER    , MILESTONE_SHORTCODE , MILESTONE_DATE      , FUNC_ID             ,
+ORG_ID              , PROJECT_ID          , MILESTONE_TYPE      , USAGE               ,
+REVISION_NO         , REVISION_DATE       , REVISED_BY          , DESCRIPTION         ,
+START_DATE          , END_DATE            , ACTIVE_YN           , STATUS              ,
+FLOW_STATUS         , FLOW_LEVEL          , FLOW_WITH           , USER_GRP_ID         ,
+ATTRIBUTE_CATEGORY  , ATTRIBUTE1          , ATTRIBUTE2          , ATTRIBUTE3          ,
+ATTRIBUTE4          , ATTRIBUTE5          , ATTRIBUTE6          , ATTRIBUTE7          ,
+ATTRIBUTE8          , ATTRIBUTE9          , ATTRIBUTE10         , CREATED_BY          ,
+CREATION_DATE       , LAST_UPDATED_BY     , LAST_UPDATE_DATE    , LAST_UPDATE_LOGIN   
+
+          )
+          values (
+          
+--                         
+                          XXPM_MS_HDR_ID_S.NEXTVAL ,
+                         c.MS_HDR_ID               ,     c.MILESTONE_NAME          ,     c.MILESTONE_NAME_TL   ,   c.MILESTONE_NUMBER                ,  
+                        c.MILESTONE_SHORTCODE     ,     c.MILESTONE_DATE          ,     c.FUNC_ID             ,   c.ORG_ID                          ,
+                        c.PROJECT_ID              ,     c.MILESTONE_TYPE          ,     c.USAGE               ,   c.REVISION_NO  ,
+			c.REVISION_DATE           ,     c.REVISED_BY              ,     c.DESCRIPTION         ,   c.START_DATE                      ,
+			c.END_DATE                ,	c.ACTIVE_YN               ,     c.STATUS                ,   c.FLOW_STATUS                     ,
+			c.FLOW_LEVEL              ,	c.FLOW_WITH               ,	c.USER_GRP_ID             ,   c.ATTRIBUTE_CATEGORY              ,
+			c.ATTRIBUTE1              ,	c.ATTRIBUTE2              ,	c.ATTRIBUTE3              ,   c.ATTRIBUTE4                      ,
+			c.ATTRIBUTE5              ,	c.ATTRIBUTE6              ,	c.ATTRIBUTE7              ,   c.ATTRIBUTE8                      ,
+			c.ATTRIBUTE9              ,	c.ATTRIBUTE10             ,	c.CREATED_BY              ,   c.CREATION_DATE                   ,
+			c.LAST_UPDATED_BY         ,	c.LAST_UPDATE_DATE        ,	c.LAST_UPDATE_LOGIN       
+     
+          ) ;
+
+          -- Create History Record for Details  
+          for d in c2
+          loop
+          
+              insert into XXPM_MILESTONE_DTL_H (
+
+MS_DTL_ID_H             ,	
+MS_DTL_ID               , MS_HDR_ID               , SEQ_NUMBER              ,INSTALLMENT_TYPE        , 
+INSTALLMENT_PCT         , CHARGE_TYPE             , PAYMENT_TERM            ,REMARKS                 , 
+DUE_DAYS                , DUE_DAYS_FROM           , PROJ_MS_ID              ,DUE_DATE                , 
+REVISION                , REVISION_DATE           , REVISED_BY              ,ATTRIBUTE_CATEGORY      , 
+ATTRIBUTE1              , ATTRIBUTE2              , ATTRIBUTE3              ,ATTRIBUTE4              , 
+ATTRIBUTE5              , ATTRIBUTE6              , ATTRIBUTE7              ,ATTRIBUTE8              , 
+ATTRIBUTE9              , ATTRIBUTE10             , CREATED_BY              ,CREATION_DATE           ,
+LAST_UPDATED_BY    	, LAST_UPDATE_DATE   	  , LAST_UPDATE_LOGIN       ,INSTALLMENT_METHOD      , 
+PERIOD_OCCURENCE        , PERIOD_VALUES           , PERIOD_DURATION         ,INSTALLMENT_EVENT       
+
+  )
+              values (
+XXPM_MS_DTL_ID_S.NEXTVAL ,
+d.MS_DTL_ID          , d.MS_HDR_ID          , d.SEQ_NUMBER         , d.INSTALLMENT_TYPE   ,
+d.INSTALLMENT_PCT    , d.CHARGE_TYPE        , d.PAYMENT_TERM       , d.REMARKS            ,
+d.DUE_DAYS           , d.DUE_DAYS_FROM      , d.PROJ_MS_ID         , d.DUE_DATE           ,
+d.REVISION           , d.REVISION_DATE      , d.REVISED_BY         , d.ATTRIBUTE_CATEGORY ,
+d.ATTRIBUTE1         , d.ATTRIBUTE2         , d.ATTRIBUTE3         , d.ATTRIBUTE4         ,
+d.ATTRIBUTE5         , d.ATTRIBUTE6         , d.ATTRIBUTE7         , d.ATTRIBUTE8         ,
+d.ATTRIBUTE9         , d.ATTRIBUTE10        , d.CREATED_BY         , d.CREATION_DATE      ,
+d.LAST_UPDATED_BY    , d.LAST_UPDATE_DATE   , d.LAST_UPDATE_LOGIN  , d.INSTALLMENT_METHOD ,
+d.PERIOD_OCCURENCE   , d.PERIOD_VALUES      , d.PERIOD_DURATION    , d.INSTALLMENT_EVENT  
+
+              ) ;
+          end loop ;
+
+      end loop ;
+      
+      -- Update Revision Number and Approved Status 
+      update  XXPM_MILESTONE_HDR
+      set     REVISION_NO        = nvl(REVISION_NO, 0) + 1,
+              STATUS             = 'RV',
+              REVISION_DATE      = sysdate,
+              REVISED_BY         = p_user_id,
+              LAST_UPDATED_BY    = p_user_id,
+              LAST_UPDATE_DATE   = sysdate
+      where   MS_HDR_ID          = p_mshdr_id ;
+
+      update  XXPM_MILESTONE_DTL
+      set     REVISION           = nvl(REVISION, 0) + 1,
+              REVISION_DATE      = sysdate,
+              REVISED_BY         = p_user_id,
+              LAST_UPDATED_BY    = p_user_id,
+              LAST_UPDATE_DATE   = sysdate
+      where   MS_HDR_ID          = p_mshdr_id ;
+
+      commit ;    
+
+      
+   exception
+      when others  then
+         p_err_code := sqlcode;
+         p_err_msg  := substr (sqlerrm, 1, 2000);
+         return;
+   end revise_milestone;
+
+
+END XX_TEST;
