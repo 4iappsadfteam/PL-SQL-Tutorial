@@ -1,0 +1,25 @@
+DECLARE
+   k   NUMBER := 0;
+BEGIN
+   FOR i IN (  SELECT booking_hdr_id, COUNT (*)
+                 FROM xxpm_booking_milestones
+                WHERE booking_hdr_id = 51
+             GROUP BY booking_hdr_id)
+   LOOP
+      k := 0;
+
+		FOR j IN (  SELECT booking_ms_dtl_id --, ROWNUM seq_number
+						FROM xxpm_booking_milestones
+					WHERE booking_hdr_id = i.booking_hdr_id
+					ORDER BY booking_ms_dtl_id)
+		LOOP
+			k := k + 1;
+	
+			UPDATE xxpm_booking_milestones
+				SET seq_number = k
+			WHERE booking_ms_dtl_id = j.booking_ms_dtl_id;
+		END LOOP;
+	
+		COMMIT;
+   END LOOP;
+END;
