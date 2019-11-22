@@ -1,0 +1,126 @@
+procedure get_updated_milestones(p_rev_hdr_id in number, p_booking_hdr_id   in    number)
+as
+begin
+
+MERGE INTO xxpm_book_ms_rev_dtl a USING 
+(SELECT BOOKING_MS_DTL_ID, MILESTONE_TYPE, MS_DTL_ID, PL_MOD_ID, SEQ_NUMBER, INSTALLMENT_TYPE, INSTALLMENT_PCT, INSTALLMENT_AMOUNT, UOM, QUANTITY, RATE, WAVE_OFF, INCLUDED_IN_RATE, INSTALLMENT_METHOD, INSTALLMENT_EVENT, PERIOD_OCCURENCE, PERIOD_VALUES, PERIOD_DURATION, CHARGE_TYPE, PAYMENT_TERM, REMARKS, DUE_DAYS, DUE_DAYS_FROM, DUE_DATE, ATTRIBUTE_CATEGORY, ATTRIBUTE1, ATTRIBUTE2, ATTRIBUTE3, ATTRIBUTE4, ATTRIBUTE5, ATTRIBUTE6, ATTRIBUTE7, ATTRIBUTE8, ATTRIBUTE9, ATTRIBUTE10, CREATED_BY, CREATION_DATE, LAST_UPDATED_BY, LAST_UPDATE_DATE, LAST_UPDATE_LOGIN, SOURCE_FUNC_ID, SOURCE_FUNC_REF_ID, BILLING_ID, STATUS, INVOICE_ID, BOOKING_HDR_ID, BASEAMOUNT, TAX_RATE, TAX_CODE, TAX_AMOUNT, CARPARKING
+FROM xxpm_booking_milestones WHERE booking_hdr_id = p_booking_hdr_id) i
+
+ON (a.booking_ms_dtl_id = i.booking_ms_dtl_id)
+
+WHEN MATCHED
+THEN
+UPDATE SET installment_pct     = i.installment_pct,
+installment_amount    = i.installment_amount,
+status                = i.status
+WHEN NOT MATCHED
+THEN
+INSERT    
+(
+          ms_rev_dtl_id,
+          ms_rev_id,
+          source_func_id,
+          source_func_ref_id,
+          milestone_type,
+          ms_dtl_id,
+          pl_mod_id,
+          seq_number,
+          installment_type,
+          installment_pct,
+          installment_amount,
+          uom,
+          quantity,
+          rate,
+          wave_off,
+          included_in_rate,
+          installment_method,
+          installment_event,
+          period_occurence,
+          period_values,
+          period_duration,
+          charge_type,
+          payment_term,
+          remarks,
+          due_days,
+          due_days_from,
+          due_date,
+          billing_id,
+          status,
+          invoice_id,
+          installment_pct_r,
+          installment_amount_r,
+          action_flag,
+          attribute_category,
+          attribute1,
+          attribute2,
+          attribute3,
+          attribute4,
+          attribute5,
+          attribute6,
+          attribute7,
+          attribute8,
+          attribute9,
+          attribute10,
+          created_by,
+          creation_date,
+          last_updated_by,
+          last_update_date,
+          last_update_login,
+          booking_ms_dtl_id,carparking
+                       )
+VALUES (XXPM_BOOKING_REV_ID_S.nextval,
+          p_rev_hdr_id,
+          i.source_func_id,
+          i.source_func_ref_id,
+          i.milestone_type,
+          i.ms_dtl_id,
+          i.pl_mod_id,
+          i.seq_number,
+          i.installment_type,
+          i.installment_pct,
+          i.installment_amount,
+          i.uom,
+          i.quantity,
+          i.rate,
+          i.wave_off,
+          i.included_in_rate,
+          i.installment_method,
+          i.installment_event,
+          i.period_occurence,
+          i.period_values,
+          i.period_duration,
+          i.charge_type,
+          i.payment_term,
+          i.remarks,
+          i.due_days,
+          i.due_days_from,
+          i.due_date,
+          i.billing_id,
+          i.status,
+          i.invoice_id,
+          i.installment_pct,
+           i.installment_amount,
+          nvl2(i.invoice_id,'NA','UPD'),
+          i.attribute_category,
+          i.attribute1,
+          i.attribute2,
+          i.attribute3,
+          i.attribute4,
+          i.attribute5,
+          i.attribute6,
+          i.attribute7,
+          i.attribute8,
+          i.attribute9,
+          i.attribute10,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          i.booking_ms_dtl_id,i.carparking
+);
+
+    COMMIT;
+end get_updated_milestones;
+
+END xxpm_book_ms_rev_pkg;
