@@ -1,0 +1,344 @@
+create or replace PROCEDURE buy_contract_lines (
+    p_xml_data IN CLOB,
+    p_out_status   OUT   VARCHAR2
+) AS
+
+    acct_doc           XMLTYPE := xmltype.createxml(p_xml_data);
+    l_err_msg          VARCHAR2(4000);
+    v_project_number   xxstg_projects.segment1%TYPE;
+    v_before_count     NUMBER;
+    v_after_count      NUMBER;
+    TYPE timerectyp IS RECORD (
+        cont_header_id           NUMBER,
+        po_header_id             NUMBER,
+po_line_id               NUMBER,
+        line_type_id             NUMBER,
+        item_id                  NUMBER,
+        item_number              VARCHAR2(2000),
+        item_description         VARCHAR2(2000),
+        uom                      VARCHAR2(30),
+        orig_unit_price          NUMBER,
+orig_quantity 				NUMBER,
+        cont_line_id             NUMBER,
+        po_distribution_number   NUMBER,
+        project_id               NUMBER,
+project_number           VARCHAR2(30),
+        task_id                  NUMBER,
+        task_number              VARCHAR2(30),
+        org_id                   NUMBER,
+        object_version_number    NUMBER,
+        created_by               VARCHAR2(64),
+        creation_date            DATE,
+        last_updated_by          VARCHAR2(64),
+        last_update_date         DATE,
+        last_update_login        VARCHAR2(32),
+        category_id              NUMBER,
+        po_line_number           NUMBER        ,
+        need_by_date             VARCHAR2(100) ,
+        expenditure_type_id      NUMBER,
+        req_line_id              NUMBER,
+        req_line_number          NUMBER,
+        item_spec                VARCHAR2(2000),
+        orig_po_line_number      NUMBER,
+        line_location_id         NUMBER,
+        tax_code                 VARCHAR2(150),
+        tax_rate                 NUMBER,
+        tax_amount               NUMBER,
+        version                  NUMBER,
+        version_type             VARCHAR2(1),
+        instance_id              VARCHAR2(50),
+        orig_amount              NUMBER
+    );
+    TYPE timetabtyp IS
+        TABLE OF timerectyp INDEX BY BINARY_INTEGER;
+    l_tbl              timetabtyp;
+    CURSOR rec IS
+    SELECT
+        cont_header_id,
+        po_header_id,
+        po_line_id,
+        line_type_id,
+        item_id,
+        item_number,
+        item_description,
+        uom,
+        orig_unit_price,
+        orig_quantity,
+        cont_line_id,
+        po_distribution_number,
+        project_id,
+        project_number,
+        task_id,
+        task_number,
+        org_id,
+        object_version_number,
+        created_by,
+        TO_DATE(TO_CHAR(to_timestamp_tz(creation_date, 'YYYY-MM-DD"T"HH24:MI:SS.ff3TZH:TZM'), 'YYYY-MM-DD'), 'YYYY-MM-DD') creation_date
+        ,
+        last_updated_by,
+        TO_DATE(TO_CHAR(to_timestamp_tz(last_update_date, 'YYYY-MM-DD"T"HH24:MI:SS.ff3TZH:TZM'), 'YYYY-MM-DD'), 'YYYY-MM-DD') last_update_date
+        ,
+        last_update_login,
+        category_id,
+        po_line_number,
+        TO_DATE(TO_CHAR(to_timestamp_tz(need_by_date, 'YYYY-MM-DD"T"HH24:MI:SS.ff3TZH:TZM'), 'YYYY-MM-DD'), 'YYYY-MM-DD')  need_by_date,
+        expenditure_type_id,
+        req_line_id,
+        req_line_number,
+        item_spec,
+        orig_po_line_number,
+        line_location_id,
+        tax_code,
+        tax_rate,
+        tax_amount,
+        version,
+        'C' version_type,
+        1 instance_id,
+        orig_amount
+    FROM
+        XMLTABLE ( '/DATA_DS/G_1' PASSING acct_doc COLUMNS cont_header_id NUMBER PATH 'PO_HEADER_ID', po_header_id NUMBER PATH 'PO_HEADER_ID'
+        , po_line_id NUMBER PATH 'PO_LINE_ID', line_type_id NUMBER PATH 'LINE_TYPE_ID', item_id NUMBER PATH 'ITEM_ID', item_number
+        VARCHAR2(2000) PATH 'ITEM_NUMBER', item_description VARCHAR2(2000) PATH 'ITEM_DESCRIPTION', uom VARCHAR2(30) PATH 'UNIT_OF_MEASURE'
+        , orig_unit_price NUMBER PATH 'UNIT_PRICE', orig_quantity NUMBER PATH 'QUANTITY', cont_line_id NUMBER PATH 'PO_DISTRIBUTION_ID'
+        , po_distribution_number NUMBER PATH 'DISTRIBUTION_NUM', project_id NUMBER PATH 'PROJECT_ID', project_number VARCHAR2(30)
+        PATH 'PROJECT_NUMBER', task_id NUMBER PATH 'TASK_ID', task_number VARCHAR2(30) PATH 'TASK_NUMBER', org_id NUMBER PATH 'ORG_ID'
+        , object_version_number NUMBER PATH 'OBJECT_VERSION_NUMBER', created_by VARCHAR2(64) PATH 'CREATED_BY', creation_date VARCHAR2
+        (100) PATH 'CREATION_DATE', last_updated_by VARCHAR2(64) PATH 'LAST_UPDATED_BY', last_update_date VARCHAR2(100) PATH 'LAST_UPDATE_DATE'
+        , last_update_login VARCHAR2(32) PATH 'LAST_UPDATE_LOGIN', category_id NUMBER PATH 'CATEGORY_ID', po_line_number NUMBER PATH
+        'PO_LINE_NUMBER', need_by_date VARCHAR2(100) PATH 'NEED_BY_DATE', expenditure_type_id NUMBER PATH 'EXPENDITURE_TYPE_ID', req_line_id
+        NUMBER PATH 'REQ_LINE_ID', req_line_number NUMBER PATH 'REQ_LINE_NUMBER', item_spec VARCHAR2(2000) PATH 'ITEM_SPEC', orig_po_line_number
+        NUMBER PATH 'ORIG_PO_LINE_NUMBER', line_location_id NUMBER PATH 'LINE_LOCATION_ID', tax_code VARCHAR2(150) PATH 'TAX_CODE'
+        , tax_rate NUMBER PATH 'TAX_RATE', tax_amount NUMBER PATH 'TAX_AMOUNT', version NUMBER PATH 'REVISION_NUM', version_type VARCHAR2
+        (1) PATH 'VERSION_TYPE',instance_id  VARCHAR2(50)  PATH 'INSTANCE_ID' ,ORIG_AMOUNT NUMBER PATH 'ORIG_AMOUNT');
+
+BEGIN
+    OPEN rec;
+    FETCH rec BULK COLLECT INTO l_tbl;
+    CLOSE rec;
+    FOR i IN l_tbl.first..l_tbl.last LOOP
+        BEGIN
+            SELECT
+                COUNT(*)
+            INTO v_before_count
+            FROM
+                xxsc_contract_lines;
+
+            dbms_output.put_line('Before Count' || v_before_count);
+        EXCEPTION
+            WHEN OTHERS THEN
+                l_err_msg := sqlerrm;
+                dbms_output.put_line('Exception in count : '||l_err_msg);
+        END;
+
+        BEGIN
+            BEGIN
+                MERGE INTO xxsc_contract_lines a
+                USING (
+                          SELECT
+                              l_tbl(i).cont_header_id cont_header_id,
+                              l_tbl(i).po_header_id po_header_id,
+                              l_tbl(i).po_line_id po_line_id,
+                              l_tbl(i).line_type_id line_type_id,
+                              l_tbl(i).item_id item_id,
+                              l_tbl(i).item_number item_number,
+                              l_tbl(i).item_description item_description,
+                              l_tbl(i).uom uom,
+                              l_tbl(i).orig_unit_price orig_unit_price,
+                              l_tbl(i).orig_quantity orig_quantity,
+                              l_tbl(i).cont_line_id cont_line_id,
+                              l_tbl(i).po_distribution_number po_distribution_number,
+                              l_tbl(i).project_id project_id,
+                              l_tbl(i).project_number project_number,
+                              l_tbl(i).task_id task_id,
+                              l_tbl(i).task_number task_number,
+                              l_tbl(i).org_id org_id,
+                              l_tbl(i).object_version_number object_version_number,
+                              l_tbl(i).created_by created_by,
+                              l_tbl(i).creation_date creation_date,
+                              l_tbl(i).last_updated_by last_updated_by,
+                              l_tbl(i).last_update_date last_update_date,
+                              l_tbl(i).last_update_login last_update_login,
+                              l_tbl(i).category_id category_id,
+                              l_tbl(i).po_line_number po_line_number,
+                              l_tbl(i).need_by_date need_by_date,
+                              l_tbl(i).expenditure_type_id expenditure_type_id,
+                              l_tbl(i).req_line_id req_line_id,
+                              l_tbl(i).req_line_number req_line_number,
+                              l_tbl(i).item_spec item_spec,
+                              l_tbl(i).orig_po_line_number orig_po_line_number,
+                              l_tbl(i).line_location_id line_location_id,
+                              l_tbl(i).tax_code tax_code,
+                              l_tbl(i).tax_rate tax_rate,
+                              l_tbl(i).tax_amount tax_amount,
+                              l_tbl(i).version version,
+                              l_tbl(i).version_type version_type,
+                              l_tbl(i).instance_id instance_id,
+                              l_tbl(i).orig_amount orig_amount
+                          FROM
+                              dual
+                      )
+                b ON ( a.cont_line_id = b.cont_line_id
+                       AND a.version = b.version )
+                WHEN MATCHED THEN UPDATE
+                SET cont_header_id = b.cont_header_id,
+                    po_header_id = b.po_header_id,
+                    po_line_id = b.po_line_id,
+                    line_type_id = b.line_type_id,
+                    item_id = b.item_id,
+                    item_number = b.item_number,
+                    item_description = b.item_description,
+                    uom = b.uom,
+                    orig_unit_price = b.orig_unit_price,
+                    orig_quantity = b.orig_quantity,
+                    po_distribution_number = b.po_distribution_number,
+                    project_id = b.project_id,
+                    project_number = b.project_number,
+                    task_id = b.task_id,
+                    task_number = b.task_number,
+                    org_id = b.org_id,
+                    object_version_number = b.object_version_number,
+                    created_by = b.created_by,
+                    creation_date = b.creation_date,
+                    last_updated_by = b.last_updated_by,
+                    last_update_date = b.last_update_date,
+                    last_update_login = b.last_update_login,
+                    category_id = b.category_id,
+                    po_line_number = b.po_line_number,
+                    need_by_date = b.need_by_date,
+                    expenditure_type_id = b.expenditure_type_id,
+                    req_line_id = b.req_line_id,
+                    req_line_number = b.req_line_number,
+                    item_spec = b.item_spec,
+                    orig_po_line_number = b.orig_po_line_number,
+                    line_location_id = b.line_location_id,
+                    tax_code = b.tax_code,
+                    tax_rate = b.tax_rate,
+                    tax_amount = b.tax_amount,
+  --  VERSION,                      =b.VERSION,
+                    version_type = b.version_type,
+                    instance_id =b.instance_id,
+                    orig_amount=b.orig_unit_price*b.orig_quantity
+                WHEN NOT MATCHED THEN
+                INSERT (
+                    cont_line_id,
+                    cont_header_id,
+                    po_header_id,
+                    po_line_id,
+                    line_type_id,
+                    item_id,
+                    item_number,
+                    item_description,
+                    uom,
+                    orig_unit_price,
+                    orig_quantity,
+                    po_distribution_number,
+                    project_id,
+                    project_number,
+                    task_id,
+                    task_number,
+                    org_id,
+                    object_version_number,
+                    created_by,
+                    creation_date,
+                    last_updated_by,
+                    last_update_date,
+                    last_update_login,
+                    category_id,
+                    po_line_number,
+                    need_by_date,
+                    expenditure_type_id,
+                    req_line_id,
+                    req_line_number,
+                    item_spec,
+                    orig_po_line_number,
+                    line_location_id,
+                    tax_code,
+                    tax_rate,
+                    tax_amount,
+                    version,
+                    version_type,
+                    instance_id,
+                    orig_amount )
+                VALUES
+                    ( b.cont_line_id,
+                      b.cont_header_id,
+                      b.po_header_id,
+                      b.po_line_id,
+                      b.line_type_id,
+                      b.item_id,
+                      b.item_number,
+                      b.item_description,
+                      b.uom,
+                      b.orig_unit_price,
+                      b.orig_quantity,
+                      b.po_distribution_number,
+                      b.project_id,
+                      b.project_number,
+                      b.task_id,
+                      b.task_number,
+                      b.org_id,
+                      b.object_version_number,
+                      b.created_by,
+                      b.creation_date,
+                      b.last_updated_by,
+                      b.last_update_date,
+                      b.last_update_login,
+                      b.category_id,
+                      b.po_line_number,
+                      b.need_by_date,
+                      b.expenditure_type_id,
+                      b.req_line_id,
+                      b.req_line_number,
+                      b.item_spec,
+                      b.orig_po_line_number,
+                      b.line_location_id,
+                      b.tax_code,
+                      b.tax_rate,
+                      b.tax_amount,
+                      b.version,
+                      b.version_type,
+                      b.instance_id,
+                      b.orig_unit_price*b.orig_quantity);
+
+                COMMIT;
+            EXCEPTION
+                WHEN OTHERS THEN
+                    l_err_msg := sqlerrm;
+                    dbms_output.put_line('Exception in Merge : ' || l_err_msg);
+            END;
+
+            BEGIN
+                SELECT
+                    COUNT(*)
+                INTO v_after_count
+                FROM
+                    xxsc_contract_lines;
+
+                dbms_output.put_line('After Count' || v_after_count);
+            EXCEPTION
+                WHEN OTHERS THEN
+                    NULL;
+            END;
+
+            IF ( v_before_count < v_after_count ) THEN
+                UPDATE xxsc_contract_lines
+                SET
+                    version_type = 'H'
+                WHERE
+                    cont_line_id = l_tbl(i).cont_line_id
+                    AND version != l_tbl(i).version;
+
+            END IF;
+
+        EXCEPTION
+            WHEN OTHERS THEN
+                NULL;
+        END;
+
+    END LOOP;
+ p_out_status := 'success';
+    COMMIT;
+    BEGIN
+        xxsc_integration_pkg.update_sc_project_id;
+    END;
+END buy_contract_lines;
